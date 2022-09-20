@@ -1,0 +1,12 @@
+#!/bin/sh
+
+#-------------------------------------------------------------------------
+# EXAMPLE SERVICE MODULE
+#-------------------------------------------------------------------------
+
+# If there is any sort of preparation necessary with access to the array of record types
+sample_prepare() { verbose "Prepare function with array of types: ${*}"; }
+# Sample source is always configured
+sample_configured() { verbose "Sample source is configured"; }
+# Return a hard coded record
+sample_records() { echo '{ "name": "sample_record.sample.com", "type": "CNAME", "content": "domain.io" }'; }

@@ -39,12 +39,15 @@ main() {
 	}
 
 	# space separated list of supported service names
-	supported_services="cloudflare"
+	supported_services="cloudflare sample"
 
 	types_filter=$(generate_type_filter "${@}")
 
 	# Calculate filters using command line arguments
 	for _service in $supported_services; do
+		# Source service functions
+		# shellcheck source=services/sample disable=1091
+		. "$(dirname "$0")/services/${_service}"
 		# shellcheck disable=2154
 		if [ "${opt_s}" = "false" ] && eval "${_service}_configured" || [ "${val_s}" = "${_service}" ]; then
 			# Only run if there is a prepare command present
@@ -100,84 +103,6 @@ generate_type_filter() {
 	unset _i _type
 	echo "${types_filter}"
 }
-
-#-------------------------------------------------------------------------
-# EXAMPLE TEST SERVICE MODULES
-#-------------------------------------------------------------------------
-
-# If there is any sort of preparation necessary with access to the array of record types
-test_prepare() { verbose "Prepare function with array of types: ${*}"; }
-# Test source is always configured
-test_configured() { verbose "Test source is configured"; }
-# Return a hard coded record
-test_records() { echo '{ "name": "text_record.test.com", "type": "TXT", "content": "IGNORE THIS RECORD" }'; }
-
-#-------------------------------------------------------------------------
-# CLOUDFLARE MODULES
-#-------------------------------------------------------------------------
-
-CLOUDFLARE_URL="https://api.cloudflare.com/client/v4"
-
-#######################################
-# Checks if the cloudflare service is configured. Either by CLOUDFLARE_TOKEN being set
-# or by CLOUDFLARE_EMAIL and CLOUDFLARE_KEY being set.
-#
-# Returns 0 if Cloudflare is configured and 1 if Cloudflare is not configured
-#
-# Globals:
-#   CLOUDFLARE_EMAIL
-#   CLOUDFLARE_KEY
-#   CLOUDFLARE_TOKEN
-#######################################
-cloudflare_configured() {
-	if [ -n "${CLOUDFLARE_EMAIL}" ] && [ -n "${CLOUDFLARE_KEY}" ] || [ -n "${CLOUDFLARE_TOKEN}" ]; then
-		return 0
-	fi
-	return 1
-}
-
-#######################################
-# Helper function for running a Cloudflare API GET request with the necessary authentication headers
-# Arguments:
-#   endpoint The Cloudflare API v4 endpoint
-#######################################
-cloudflare_api() {
-	endpoint="${1}"
-	# TODO ALLOW TOKEN OR EMAIL/API_KEY
-	if [ -n "${CLOUDFLARE_TOKEN}" ]; then
-		set -- -H "Authorization: Bearer ${CLOUDFLARE_TOKEN}" -H "Content-Type: application/json"
-	elif [ -n "${CLOUDFLARE_EMAIL}" ] && [ -n "${CLOUDFLARE_KEY}" ]; then
-		set -- -H "X-Auth-Email: ${CLOUDFLARE_EMAIL}" -H "X-Auth-Key: ${CLOUDFLARE_KEY}" -H "Content-Type: application/json"
-	else
-		error 1 "Cloudflare token or email+auth key are not provided. Please set the necessary environment variables"
-	fi
-	curl -X GET "${CLOUDFLARE_URL}/${endpoint}" "$@" 2>/dev/null
-}
-
-#######################################
-# Get all the records from Cloudflare as a JSON array where each item is of the
-# structure `{ name: string, type: string, content: string }`
-#######################################
-cloudflare_records() {
-	zones=$(cloudflare_api "zones" | jq ".result | map({(.name): .id}) | add")
-	for _zone in $(echo "${zones}" | jq -r "keys[]"); do
-		# shellcheck disable=2154
-		if [ "${opt_d}" = "false" ] || [ "${val_d}" = "${_zone}" ]; then
-			zone_id=$(echo "${zones}" | jq -r ".\"${_zone}\"")
-			# Get zone records using zone id
-			# cloudflare_api "zones/${zone_id}/dns_records/" | jq -r ".result | map(${cloudflare_filter} {name,type,content}) | .[]"
-			cloudflare_api "zones/${zone_id}/dns_records/" | jq -r ".result | map({name,type,content}) | .[]"
-		fi
-	done
-	unset _zone
-}
-
-#-------------------------------------------------------------------------
-
-# TODO add more services here....
-# They just need to implement X_configured, X_prepare, and X_records functions where X is the service name
-
-##########################################################################
 
 # shellcheck disable=2034,2046
 set_defaults() {
