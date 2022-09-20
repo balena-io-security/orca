@@ -32,23 +32,36 @@ main() {
 	ret=0
 	_i=1
 	for _file; do
-		# if argument is a file then check all lines as a domain
-		if [ -f "$_file" ]; then
-			while read -r domain; do
-				if ! check_domain "${domain}"; then ret=1; fi
-			done <"${_file}"
-		# if argument is not a file act just check it
-		else
-			if ! check_domain "${_file}"; then ret=1; fi
-		fi
+		if ! verify_argument "$_file"; then ret=1; fi
 		_i=$((_i + 1))
 	done
+	if [ -p /dev/stdin ]; then
+		while IFS= read -r line; do
+			if ! verify_argument "${line}"; then ret=1; fi
+			_i=$((_i + 1))
+		done
+	fi
 	if [ ${_i} -eq 1 ]; then
 		usage
 	fi
 	unset _i _file
 
 	exit $ret
+}
+
+verify_argument() {
+	file=$1
+	ret=0
+	# if argument is a file then check all lines as a domain
+	if [ -f "$file" ]; then
+		while read -r domain; do
+			if ! check_domain "${domain}"; then ret=1; fi
+		done <"${file}"
+	# if argument is not a file act just check it
+	else
+		if ! check_domain "${file}"; then ret=1; fi
+	fi
+	return $ret
 }
 
 # check if dns entry is resolvable
