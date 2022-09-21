@@ -1,9 +1,10 @@
 # DNS Verification Script
 
 ```
-Usage: dns_verify.sh [-s <file>] [-hqvV] [<file_or_domain>]...
+Usage: dns_verify.sh [-s <file>] [-hqvSV] [<file_or_domain>]...
   DNS Verification Script v0.1
     -s <file>  JSON file of take-down services and a string to check for
+    -S         Skip takedown service checking
     -h         Display this help text and exit
     -q         Quiet
     -d         Debug mode (log the entire checking process)

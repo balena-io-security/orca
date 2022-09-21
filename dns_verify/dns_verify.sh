@@ -3,10 +3,11 @@
 prog_name=${0##*/}
 version=0.1
 version_text="DNS Verification Script v$version"
-options="h q v V d s: " # basic opts
-help_text="Usage: $prog_name [-s <file>] [-hqvV] [<file_or_domain>]...
+options="h q v V d S s: " # basic opts
+help_text="Usage: $prog_name [-s <file>] [-hqvSV] [<file_or_domain>]...
   ${version_text}
     -s <file>  JSON file of take-down services and a string to check for
+    -S         Skip takedown service checking
     -h         Display this help text and exit
     -q         Quiet
     -d         Debug mode (log the entire checking process)
@@ -46,35 +47,48 @@ main() {
 	fi
 	unset _i _file
 
-	exit $ret
+	if [ $ret -ne 0 ]; then
+		error $ret "Some domains could not be verified"
+	fi
 }
 
-verify_argument() {
+verify_argument() (
 	file=$1
 	ret=0
 	# if argument is a file then check all lines as a domain
 	if [ -f "$file" ]; then
 		while read -r domain; do
-			if ! check_domain "${domain}"; then ret=1; fi
+			if ! check_domain "${domain}"; then
+				ret=1
+			fi
 		done <"${file}"
 	# if argument is not a file act just check it
 	else
 		if ! check_domain "${file}"; then ret=1; fi
 	fi
 	return $ret
-}
+)
 
 # check if dns entry is resolvable
-dns_exists() { nslookup "${1}" >/dev/null; }
+dns_exists() (nslookup "${1}" >/dev/null)
 
 # fully check a domain
-check_domain() {
+check_domain() (
 	orig_domain=${1}
+	if [ -z "${orig_domain}" ] || [ ! "${orig_domain}" = "${orig_domain#\#}" ]; then return 0; fi
 	debug "Checking ${orig_domain}"
+
+	domain_existence=$(dig "${orig_domain}" +short soa 2>/dev/null)
+	if [ -z "${domain_existence}" ]; then
+		info "ERROR: ${orig_domain} is not a valid domain"
+		return 1
+	fi
+
 	domain=$(echo "${orig_domain}" | sed "s/*/potatocannon/")
 
 	# Check to see if all CNAME records are resolvable
-	for ip in $(dig CNAME "${domain}" +short); do
+	cnames=$(dig CNAME "${domain}" +short)
+	for ip in ${cnames}; do
 		if ! dns_exists "${ip}"; then
 			info "ERROR: ${orig_domain}: Dangling CNAME record ${ip}"
 			return 1
@@ -83,23 +97,29 @@ check_domain() {
 
 	# Check for take-over abilities
 	# shellcheck disable=2154
-	if [ -f "${val_s}" ]; then
-		page_content=$(curl --connect-timeout 5 -L "${domain}" 2>/dev/null)
-		services=$(jq -r 'keys[]' "${val_s}")
-		for service in ${services}; do
-			error_pattern=$(jq -r ".${service}" "${val_s}")
-			debug "${service}: Testing for ${error_pattern}"
-			if echo "${page_content}" | grep -q "${error_pattern}"; then
-				info "ERROR: ${orig_domain}: ${service} vulnerable to DNS take-over"
-				return 1
-			fi
-		done
+	if [ "${opt_s}" = "false" ] && [ "${opt_S}" = "false" ]; then
+		error 1 "Services file not provided"
+	elif [ "${opt_S}" = "false" ]; then
+		if [ -f "${val_s}" ]; then
+			page_content=$(curl --connect-timeout 5 -L "${domain}" 2>/dev/null)
+			services=$(jq -r 'keys[]' "${val_s}")
+			for service in ${services}; do
+				error_pattern=$(jq -r ".${service}" "${val_s}")
+				debug "${service}: Testing for ${error_pattern}"
+				if echo "${page_content}" | grep -q "${error_pattern}"; then
+					info "ERROR: ${orig_domain}: ${service} vulnerable to DNS take-over"
+					return 1
+				fi
+			done
+		else
+			error 1 "Services file ${val_s} does not exist!"
+		fi
 	fi
 
 	# shellcheck disable=2154
 	$opt_v && info "${orig_domain}: PASSED"
 	return 0
-}
+)
 
 ##########################################################################
 
@@ -156,6 +176,13 @@ usage() {
 	}
 	printf %s\\n "$help_text"
 	exit ${1:+1}
+}
+
+error() {
+	_error=${1:-1}
+	shift
+	printf '%s: Error: %s\n' "$prog_name" "$*" >&2
+	exit "$_error"
 }
 
 clean_exit() {
