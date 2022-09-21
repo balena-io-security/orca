@@ -40,7 +40,7 @@ main() {
 	supported_services="cloudflare"
 
 	# shellcheck disable=2154
-	if [ "${opt_s}" = "true" ] && ! (echo ${supported_services} | grep -Pq "(^|\s)${val_s}(\s|$)"); then
+	if [ "${opt_s}" = "true" ] && ! (printf "%s" "${supported_services}" | grep -Pq "(^|\s)${val_s}(\s|$)"); then
 		error 1 "Service ${val_s} not supported"
 	fi
 
@@ -101,7 +101,7 @@ generate_type_filter() {
 		types_filter=""
 	fi
 	unset _i _type
-	echo "${types_filter}"
+	printf "%s" "${types_filter}"
 }
 
 #-------------------------------------------------------------------------
@@ -113,7 +113,7 @@ test_prepare() { verbose "Prepare function with array of types: ${*}"; }
 # Test source is always configured
 test_configured() { verbose "Test source is configured"; }
 # Return a hard coded record
-test_records() { echo '{ "name": "text_record.test.com", "type": "TXT", "content": "IGNORE THIS RECORD" }'; }
+test_records() { printf '{ "name": "text_record.test.com", "type": "TXT", "content": "IGNORE THIS RECORD" }'; }
 
 #-------------------------------------------------------------------------
 # CLOUDFLARE MODULES
@@ -156,11 +156,11 @@ cloudflare_api() {
 
 	response=$(curl -X GET "${CLOUDFLARE_URL}/${endpoint}" "$@" 2>/dev/null)
 
-	if [ "$(echo "${response}" | jq .success)" = "false" ]; then
+	if [ "$(printf "%s" "${response}" | jq .success)" = "false" ]; then
 		error 1 "Cloudflare login failed"
 	fi
 
-	echo "$response"
+	printf "%s" "$response"
 }
 
 #######################################
@@ -169,18 +169,18 @@ cloudflare_api() {
 #######################################
 cloudflare_records() {
 	raw_zones=$(cloudflare_api "zones")
-	zones=$(echo "${raw_zones}" | jq ".result | map({(.name): .id}) | add")
+	zones=$(printf "%s" "${raw_zones}" | jq ".result | map({(.name): .id}) | add")
 	# shellcheck disable=2154
-	if [ "${opt_d}" = "true" ] && [ "$(echo "${zones}" | jq "has(\"${val_d}\")")" = "false" ]; then
+	if [ "${opt_d}" = "true" ] && [ "$(printf "%s" "${zones}" | jq "has(\"${val_d}\")")" = "false" ]; then
 		error 1 "Cloudflare zone ${val_d} does not exist"
 	fi
-	for _zone in $(echo "${zones}" | jq -r "keys[]"); do
+	for _zone in $(printf "%s" "${zones}" | jq -r "keys[]"); do
 		# shellcheck disable=2154
 		if [ "${opt_d}" = "false" ] || [ "${val_d}" = "${_zone}" ]; then
-			zone_id=$(echo "${zones}" | jq -r ".\"${_zone}\"")
+			zone_id=$(printf "%s" "${zones}" | jq -r ".\"${_zone}\"")
 			# Get zone records using zone id
 			records=$(cloudflare_api "zones/${zone_id}/dns_records/")
-			echo "${records}" | jq -r ".result | map({name,type,content}) | .[]"
+			printf "%s" "${records}" | jq -r ".result | map({name,type,content}) | .[]"
 		fi
 	done
 	unset _zone
