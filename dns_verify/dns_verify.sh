@@ -78,7 +78,7 @@ check_domain() (
 	if [ -z "${orig_domain}" ] || [ ! "${orig_domain}" = "${orig_domain#\#}" ]; then return 0; fi
 	debug "Checking ${orig_domain}"
 
-	domain_existence=$(dig "${orig_domain}" +short soa 2>/dev/null)
+	domain_existence=$(dig "${orig_domain}" +short 2>/dev/null)
 	if [ -z "${domain_existence}" ]; then
 		info "ERROR: ${orig_domain} is not a valid domain"
 		return 1
