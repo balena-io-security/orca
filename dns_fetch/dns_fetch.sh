@@ -231,12 +231,13 @@ parse_options() {
 }
 
 info() { printf '%b\n' "$*"; }
+stderr() { info 'ERROR: ' "$*" >&2; }
 verbose() { info 'VERBOSE: ' "$*" >&2; }
 
 error() {
 	_error=${1:-1}
 	shift
-	printf '%s: Error: %s\n' "$prog_name" "$*" >&2
+	stderr "$*"
 	exit "$_error"
 }
 

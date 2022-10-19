@@ -80,7 +80,7 @@ check_domain() (
 
 	domain_existence=$(dig "${orig_domain}" +short 2>/dev/null)
 	if [ -z "${domain_existence}" ]; then
-		info "ERROR: ${orig_domain} is not a valid domain"
+		stderr "${orig_domain} is not a valid domain"
 		return 1
 	fi
 
@@ -90,7 +90,7 @@ check_domain() (
 	cnames=$(dig CNAME "${domain}" +short)
 	for ip in ${cnames}; do
 		if ! dns_exists "${ip}"; then
-			info "ERROR: ${orig_domain}: Dangling CNAME record ${ip}"
+			stderr "${orig_domain}: Dangling CNAME record ${ip}"
 			return 1
 		fi
 	done
@@ -107,7 +107,7 @@ check_domain() (
 				error_pattern=$(jq -r ".${service}" "${val_s}")
 				debug "${service}: Testing for ${error_pattern}"
 				if echo "${page_content}" | grep -q "${error_pattern}"; then
-					info "ERROR: ${orig_domain}: ${service} vulnerable to DNS take-over"
+					stderr "${orig_domain}: ${service} vulnerable to DNS take-over"
 					return 1
 				fi
 			done
@@ -162,6 +162,7 @@ parse_options() {
 }
 
 info() { printf '%b\n' "$*"; }
+stderr() { info 'ERROR: ' "$*" >&2; }
 debug() { info 'DEBUG: ' "$*" >&2; }
 
 version() {
@@ -181,7 +182,7 @@ usage() {
 error() {
 	_error=${1:-1}
 	shift
-	printf '%s: Error: %s\n' "$prog_name" "$*" >&2
+	stderr "$*"
 	exit "$_error"
 }
 
